@@ -7,63 +7,73 @@ import CircularProgress from "@mui/material/CircularProgress";
 import { default as Container } from "@mui/material/Box";
 
 const average = (arr) =>
-  arr.reduce((acc, cur, i, arr) => acc + cur / arr.length, 0);
+  arr.length === 0 ? 0 : arr.reduce((acc, cur) => acc + cur / arr.length, 0);
+
 const KEY = process.env.REACT_APP_API_KEY;
 
 export default function App() {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
-  // const [watched, setWatched] = useLocalStorageState([], 'watched')
   const [watched, setWatched] = useState([]);
   const [isMoviesLoading, setIsMoviesLoading] = useState(false);
   const { movies, isLoading, error } = useMovies(query);
 
+  // FIX 1: Add abort controller to cancel request on unmount
   useEffect(
     function () {
+      const controller = new AbortController();
+
       async function fetchMovies() {
         try {
           setIsMoviesLoading(true);
-          const res = await axios.get("/movies");
-          const data = await res.data
-          if (data)
+          const res = await axios.get("/movies", {
+            signal: controller.signal,
+          });
+          const data = res.data; // FIX 2: Changed from 'await res.data' (incorrect syntax)
+          if (data && Array.isArray(data)) {
             setWatched(data);
-
+          }
         } catch (err) {
-          console.log(err);
-          setIsMoviesLoading(false);
+          if (err.name !== "CanceledError") {
+            console.log(err);
+          }
         } finally {
           setIsMoviesLoading(false);
         }
       }
       fetchMovies();
+
+      return () => controller.abort(); // FIX 3: Cleanup function to cancel request
     },
-    [setWatched],
+    [] // FIX 4: Changed dependency array - removed setWatched
   );
+
   function handleSelectMovie(id) {
     setSelectedId((selectedId) => (id === selectedId ? null : id));
   }
+
   function handleCloseMovie() {
     setSelectedId("");
   }
+
   async function handleAddWatched(newMovie) {
     try {
       setIsMoviesLoading(true);
       const res = await axios.post("/movies/123", newMovie);
       setWatched((movies) => [...movies, res.data]);
     } catch (err) {
-      setIsMoviesLoading(false);
       console.log(err);
     } finally {
       setIsMoviesLoading(false);
     }
   }
+
   async function handleDeleteWatched(id) {
     try {
       setIsMoviesLoading(true);
       await axios.delete(`/movies/123?id=${id}`);
       setWatched((watched) => watched.filter((movie) => movie.imdbID !== id));
     } catch (err) {
-      setIsMoviesLoading(false);
       console.log(err);
     } finally {
       setIsMoviesLoading(false);
@@ -79,7 +89,6 @@ export default function App() {
       </NavBar>
       <Main>
         <Box>
-          {/* {isLoading ? <Loader /> : <MoviesList movies={movies} />} */}
           {isLoading && <Loader />}
           {!isLoading && !error && (
             <MoviesList movies={movies} onSelectMovie={handleSelectMovie} />
@@ -109,6 +118,7 @@ export default function App() {
     </>
   );
 }
+
 function ErrorMessage({ message }) {
   return (
     <p className='error'>
@@ -117,12 +127,15 @@ function ErrorMessage({ message }) {
     </p>
   );
 }
+
 function Loader() {
   return <p className='loader'>Loading...</p>;
 }
+
 function NavBar({ children }) {
   return <nav className='nav-bar'>{children}</nav>;
 }
+
 function Logo() {
   return (
     <div className='logo'>
@@ -131,12 +144,13 @@ function Logo() {
     </div>
   );
 }
+
 function Search({ query, setQuery }) {
-  const inputEl = useRef();
+  const inputEl = useRef(null); // FIX 5: Initialize with null
 
   useKey("Enter", function () {
     if (document.activeElement === inputEl.current) return;
-    inputEl.current.focus();
+    inputEl.current?.focus(); // FIX 6: Safe optional chaining
     setQuery("");
   });
 
@@ -151,6 +165,7 @@ function Search({ query, setQuery }) {
     />
   );
 }
+
 function ResultCount({ movies }) {
   return (
     <p className='num-results'>
@@ -158,9 +173,11 @@ function ResultCount({ movies }) {
     </p>
   );
 }
+
 function Main({ children }) {
   return <main className='main'>{children}</main>;
 }
+
 function Box({ children }) {
   const [isOpen1, setIsOpen1] = useState(true);
   return (
@@ -175,15 +192,22 @@ function Box({ children }) {
     </div>
   );
 }
+
 function MoviesList({ movies, onSelectMovie }) {
   return (
-    <ul className='list  list-movies'>
-      {movies.length > 0 && movies?.map((movie) => (
-        <Movie movie={movie} key={movie.imdbID} onSelectMovie={onSelectMovie} />
-      ))}
+    <ul className='list list-movies'>
+      {movies.length > 0 &&
+        movies.map((movie) => (
+          <Movie
+            movie={movie}
+            key={movie.imdbID}
+            onSelectMovie={onSelectMovie}
+          />
+        ))}
     </ul>
   );
 }
+
 function Movie({ movie, onSelectMovie }) {
   return (
     <li onClick={() => onSelectMovie(movie.imdbID)}>
@@ -198,48 +222,29 @@ function Movie({ movie, onSelectMovie }) {
     </li>
   );
 }
-// function WatchedBox() {
-//   const [watched, setWatched] = useState(tempWatchedData)
-//   const [isOpen2, setIsOpen2] = useState(true)
 
-//   return (
-//     <div className="box">
-//       <button
-//         className="btn-toggle"
-//         onClick={() => setIsOpen2((open) => !open)}
-//       >
-//         {isOpen2 ? '–' : '+'}
-//       </button>
-//       {isOpen2 && (
-//         <>
-//           <Summary watched={watched} />
-//           <WatchedSummary watched={watched} />
-//         </>
-//       )}
-//     </div>
-//   )
-// }
 function MovieDetails({ selectedId, onCloseMovie, onAddWatched, watched }) {
   const [movie, setMovie] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [userRating, setUserRating] = useState("");
-  const isWatched = watched?.map((movie) => movie.imdbID).includes(selectedId);
-  const userWatchedRated = watched.find((movie) => {
-    return selectedId === movie.imdbID;
-  })?.userRating;
+
+  // FIX 7: Safe handling of watched array
+  const isWatched = Array.isArray(watched) && watched.map((movie) => movie.imdbID).includes(selectedId);
+  const userWatchedRated = watched?.find((movie) => selectedId === movie.imdbID)?.userRating;
 
   const {
-    Title: title,
-    imdbRating,
-    Runtime: runtime,
-    Actors: actors,
-    Genre: genre,
-    Poster: poster,
-    Plot: plot,
-    Director: director,
-    Released: released,
+    Title: title = "",
+    imdbRating = "",
+    Runtime: runtime = "",
+    Actors: actors = "",
+    Genre: genre = "",
+    Poster: poster = "",
+    Plot: plot = "",
+    Director: director = "",
+    Released: released = "",
   } = movie;
-  function handleAddWatched(movie) {
+
+  function handleAddWatched() {
     const newMovie = {
       imdbID: selectedId,
       title,
@@ -252,40 +257,57 @@ function MovieDetails({ selectedId, onCloseMovie, onAddWatched, watched }) {
       imdbRating: Number(imdbRating),
     };
     onAddWatched(newMovie);
-    onCloseMovie(true);
+    onCloseMovie("");
   }
+
   function handleUserRating(rating) {
     setUserRating(rating);
   }
+
+  // FIX 8: Add abort controller for fetch
   useEffect(
     function () {
+      const controller = new AbortController();
+
       async function getMovieDetails() {
-        setIsLoading(true);
-        const res = await fetch(
-          `http://www.omdbapi.com/?apikey=${KEY}&i=${selectedId}`,
-        );
+        try {
+          setIsLoading(true);
+          const res = await fetch(
+            `http://www.omdbapi.com/?apikey=${KEY}&i=${selectedId}`,
+            { signal: controller.signal }
+          );
 
-        const data = await res.json();
-
-        setMovie(data);
-        setIsLoading(false);
+          const data = await res.json();
+          setMovie(data);
+        } catch (err) {
+          if (err.name !== "AbortError") {
+            console.log(err);
+          }
+        } finally {
+          setIsLoading(false);
+        }
       }
       getMovieDetails();
+
+      return () => controller.abort(); // FIX 9: Cleanup
     },
-    [selectedId],
+    [selectedId]
   );
+
+  // FIX 10: Add cleanup for document title
   useEffect(
     function () {
       if (!title) return;
       document.title = `Movie | ${title}`;
       return function () {
         document.title = "usePopcorn";
-        // console.log(title)
       };
     },
-    [title],
+    [title]
   );
+
   useKey("Escape", onCloseMovie);
+
   return (
     <>
       {isLoading ? (
@@ -307,7 +329,7 @@ function MovieDetails({ selectedId, onCloseMovie, onAddWatched, watched }) {
             </div>
           </header>
           <section>
-            <div className='rating  '>
+            <div className='rating'>
               {!isWatched ? (
                 <>
                   <StarRating
@@ -336,12 +358,13 @@ function MovieDetails({ selectedId, onCloseMovie, onAddWatched, watched }) {
     </>
   );
 }
+
 function WatchedSummary({ watched, onDeleteMovie, isMoviesLoading }) {
   if (isMoviesLoading) return <Spinner />;
   return (
     <ul className='list'>
-      {watched.length > 0 &&
-        watched?.map((movie) => (
+      {Array.isArray(watched) &&
+        watched.map((movie) => (
           <WatchedMovie
             movie={movie}
             key={movie.imdbID}
@@ -351,6 +374,7 @@ function WatchedSummary({ watched, onDeleteMovie, isMoviesLoading }) {
     </ul>
   );
 }
+
 function WatchedMovie({ movie, onDeleteMovie }) {
   return (
     <li key={movie.imdbID}>
@@ -373,6 +397,7 @@ function WatchedMovie({ movie, onDeleteMovie }) {
     </li>
   );
 }
+
 function Rating({ rate, children }) {
   return (
     <p>
@@ -383,10 +408,20 @@ function Rating({ rate, children }) {
     </p>
   );
 }
+
 function Summary({ watched }) {
-  const avgImdbRating = average(watched?.map((movie) => movie.imdbRating));
-  const avgUserRating = average(watched?.map((movie) => movie.userRating));
-  const avgRuntime = average(watched?.map((movie) => movie.runtime));
+  // FIX 11: Safe array handling with length check
+  const avgImdbRating =
+    watched.length > 0
+      ? average(watched.map((movie) => movie.imdbRating))
+      : 0;
+  const avgUserRating =
+    watched.length > 0
+      ? average(watched.map((movie) => movie.userRating))
+      : 0;
+  const avgRuntime =
+    watched.length > 0 ? average(watched.map((movie) => movie.runtime)) : 0;
+
   return (
     <div className='summary'>
       <h2>Movies you watched</h2>
@@ -397,20 +432,21 @@ function Summary({ watched }) {
         </p>
         <p>
           <span>⭐️</span>
-          <span>{avgImdbRating}</span>
+          <span>{avgImdbRating.toFixed(2)}</span>
         </p>
         <p>
           <span>🌟</span>
-          <span>{avgUserRating}</span>
+          <span>{avgUserRating.toFixed(2)}</span>
         </p>
         <p>
           <span>⏳</span>
-          <span>{avgRuntime} min</span>
+          <span>{avgRuntime.toFixed(0)} min</span>
         </p>
       </div>
     </div>
   );
 }
+
 function Spinner() {
   return (
     <Container
