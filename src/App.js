@@ -5,6 +5,7 @@ import axios from "axios";
 import { useMovies } from "./useMovies";
 import CircularProgress from "@mui/material/CircularProgress";
 import { default as Container } from "@mui/material/Box";
+const API_URL = process.env.REACT_APP_API_URL;
 
 const average = (arr) =>
   arr.length === 0 ? 0 : arr.reduce((acc, cur) => acc + cur / arr.length, 0);
@@ -26,7 +27,7 @@ export default function App() {
       async function fetchMovies() {
         try {
           setIsMoviesLoading(true);
-          const res = await axios.get("/movies", {
+          const res = await axios.get(`${API_URL}/movies`, {
             signal: controller.signal,
           });
           const data = res.data; // FIX 2: Changed from 'await res.data' (incorrect syntax)
@@ -59,7 +60,7 @@ export default function App() {
   async function handleAddWatched(newMovie) {
     try {
       setIsMoviesLoading(true);
-      const res = await axios.post("/movies/123", newMovie);
+      const res = await axios.post(`${API_URL}/movies/123`, newMovie);
       setWatched((movies) => [...movies, res.data]);
     } catch (err) {
       console.log(err);
@@ -71,7 +72,7 @@ export default function App() {
   async function handleDeleteWatched(id) {
     try {
       setIsMoviesLoading(true);
-      await axios.delete(`/movies/123?id=${id}`);
+      await axios.delete(`${API_URL}/movies/123?id=${id}`);
       setWatched((watched) => watched.filter((movie) => movie.imdbID !== id));
     } catch (err) {
       console.log(err);
@@ -273,7 +274,7 @@ function MovieDetails({ selectedId, onCloseMovie, onAddWatched, watched }) {
         try {
           setIsLoading(true);
           const res = await fetch(
-            `http://www.omdbapi.com/?apikey=${KEY}&i=${selectedId}`,
+            `https://www.omdbapi.com/?apikey=${KEY}&i=${selectedId}`,
             { signal: controller.signal }
           );
 
