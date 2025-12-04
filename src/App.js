@@ -24,8 +24,10 @@ export default function App() {
         try {
           setIsMoviesLoading(true);
           const res = await axios.get("/movies");
+          const data = await res.data
+          if (data)
+            setWatched(data);
 
-          setWatched(res.data);
         } catch (err) {
           console.log(err);
           setIsMoviesLoading(false);
@@ -176,7 +178,7 @@ function Box({ children }) {
 function MoviesList({ movies, onSelectMovie }) {
   return (
     <ul className='list  list-movies'>
-      {movies?.map((movie) => (
+      {movies.length > 0 && movies?.map((movie) => (
         <Movie movie={movie} key={movie.imdbID} onSelectMovie={onSelectMovie} />
       ))}
     </ul>
@@ -338,13 +340,14 @@ function WatchedSummary({ watched, onDeleteMovie, isMoviesLoading }) {
   if (isMoviesLoading) return <Spinner />;
   return (
     <ul className='list'>
-      {watched?.map((movie) => (
-        <WatchedMovie
-          movie={movie}
-          key={movie.imdbID}
-          onDeleteMovie={onDeleteMovie}
-        />
-      ))}
+      {watched.length > 0 &&
+        watched?.map((movie) => (
+          <WatchedMovie
+            movie={movie}
+            key={movie.imdbID}
+            onDeleteMovie={onDeleteMovie}
+          />
+        ))}
     </ul>
   );
 }
